@@ -1,0 +1,42 @@
+---
+title: "Coastal VA Offshore Wind Analysis"
+author: "Joe Roberts"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document: 
+    keep_md: true
+    toc: true
+    toc_float: true
+    theme: readable
+---
+
+# Introduction
+
+The Coastal Virginia Offshore Wind Project is an offshore wind turbine installation being developed by Dominion Energy in conjunction with Siemens-Gamesa.
+
+```{r, echo=FALSE, message=FALSE}
+knitr::include_graphics("coastal_power_graphic.png")
+```
+
+# Data Overview
+
+Put an overview of data sources and all that good stuff.
+
+Here's an example of a plot that shows how wind in this area varies by time of day and by season:
+
+```{r, echo=FALSE, message=FALSE}
+knitr::include_graphics("wind_vs_time_by_season.png")
+```
+
+Here's the plotted turbine power curve:
+
+```{r, echo=FALSE, message=FALSE}
+knitr::include_graphics("turbine_power_curve.png")
+```
+
+
+Here's the weighted average power plot:
+
+```{r, echo=FALSE, message=FALSE}
+knitr::include_graphics("weighted_average_power_and_wind.png")
+```

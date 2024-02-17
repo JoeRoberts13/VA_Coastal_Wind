@@ -146,15 +146,19 @@ ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
 # looks like wind speed tends to lower during the middle of the day
 
 # Plot wind speeds vs. time-of-day by season
-ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
+wind_vs_time_by_season <- ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
   geom_boxplot() +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
   labs(title = "Wind Speed vs. Time of Day by Season",
        x = "Time of Day",
        y = "Wind Speed (@ 100m elevation)") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1),  # Improve readability of x-axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Improve readability of x-axis labels
         strip.text = element_text(face = "bold", size = 12),
-        plot.title = element_text(face = "italic", size = 16))
+        plot.title = element_text(face = "italic", size = 12))
+
+ggsave("wind_vs_time_by_season.png", 
+       plot = wind_vs_time_by_season, 
+       width = 8, height = 6)
 
 # Summary: Wind seems to be generally higher, and a little bit more variable in 
 # the Winter and Spring.  Also, wind seems to be slightly higher at night.
@@ -306,7 +310,7 @@ coastal_data_df <- coastal_data_df %>%
 
 ###### Turbine Power Curve ####
 # We'll plot the turbine power curve to see how it looks
-ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW)) +
+turbine_power_curve <- ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW)) +
   geom_point() + 
   geom_hline(yintercept = rated_power, linetype = "dashed", color = "red") +
   geom_text(aes(x = 0, y = rated_power, 
@@ -316,6 +320,9 @@ ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW)) +
        x = "Wind Speed (m/s)",
        y = "Power (kW)") +
   theme(plot.title = element_text(face = "italic"))
+
+ggsave("turbine_power_curve.png", plot=turbine_power_curve, 
+       width = 8, height = 6)
 
 # See what the average power output greater than rated speed is
 print(paste("Average power when > rated speed:", 
@@ -334,7 +341,7 @@ plot(coastal_data_df$time_of_day, coastal_data_df$power_kW, pch = 16,
      xlab = "Time of Day", ylab = "Power (kW)",
      main = "Scatterplot: Power vs. Time of Day")
 
-# Energy produced vs. Time-of-day by season
+# Energy produced vs. Time-of-day by season 
 ggplot(coastal_data_df, aes(x = time_of_day, y = power_kW)) +
   geom_boxplot() +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
@@ -345,19 +352,6 @@ ggplot(coastal_data_df, aes(x = time_of_day, y = power_kW)) +
         strip.text = element_text(face = "bold", size = 12),
         plot.title = element_text(face = "italic", size = 16))
 
-
-### Make some tiled scatterplots 
-# selected_y_vars <- c("T_F", "wind_ms", "RH","p_in","p_v","p_d","rho","power_kw")
-# data_selected <- data[, c("DATE", selected_y_vars)]
-# data_long <- tidyr::gather(data_selected, key = "variable", value = "value", -DATE)
-# 
-# p_scatterTile <- ggplot(data_long, aes(x = DATE, y = value)) +
-#   geom_point(color="lightblue") +
-#   facet_wrap(~variable, scales = "free") +
-#   labs(x = "DATE", y = "Y") +
-#   theme_minimal()
-
-#ggsave("Wind_Power/Accomack_Weather.png", p_scatterTile, width = 10, height = 6, units = "in")
 
 ### Make a weighted histogram of wind speed
 # Define bins for wind speed
@@ -444,4 +438,6 @@ combined_plot <- hours_plot +
 
 # Print the combined plot
 print(combined_plot)
+ggsave("weighted_average_power_and_wind.png", plot = combined_plot, 
+       width = 8, height = 8)
 
