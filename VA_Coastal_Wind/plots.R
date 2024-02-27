@@ -5,9 +5,13 @@ library(httr)
 library(suncalc)
 library(lubridate)
 library("tidyverse")
+library(RColorBrewer)
 
 # Source the data creation script
 source("VA_Coastal_Wind/main.R")
+
+# Set color palette
+pal <- brewer.pal(n = 3, name = "Set3") # Adjust 'n' based on your need
 
 #### Exploratory Data Analysis ####
 
@@ -19,7 +23,7 @@ plot(coastal_data_df$date_time, coastal_data_df$wind_speed_100m)
 
 ###### Tiled weather plot #####
 ## Make some tiled scatterplots 
-selected_y_vars <- c("temperature_2m", "air_density", "wind_speed_100m","power_kW")
+selected_y_vars <- c("temperature_2m", "pressure_msl", "wind_speed_100m","air_density")
 
 scatter_min_date <- as.POSIXct("01-01-20", format = "%m-%d-%y", tz = timezone)
 scatter_max_date <- as.POSIXct("01-01-21", format = "%m-%d-%y", tz = timezone)
@@ -31,8 +35,8 @@ data_selected <- coastal_data_df[selected_x_dates, c("date_time", selected_y_var
 data_long <- tidyr::gather(data_selected, key = "variable", value = "value", -date_time)
 
 data_long$variable <- factor(data_long$variable, 
-                       levels = c("temperature_2m", "air_density", "wind_speed_100m","power_kW"),
-                       labels = c("Temperature (C)", "Air Density (kg/m^3)", "Wind Speed (m/s)", "Power (kW)"))
+                       levels = c("temperature_2m", "pressure_msl", "wind_speed_100m","air_density"),
+                       labels = c("Temperature (C)", "Pressure (hPa)", "Wind Speed (m/s)", "Air Density (kg/m^3)"))
 
 
 p_scatterTile <- ggplot(data_long, aes(x = date_time, y = value)) +
@@ -167,6 +171,125 @@ wind_hist <- ggplot(coastal_data_df, aes(x = wind_bin_midpoint, y = time_differe
   theme_minimal()
 
 print(wind_hist)
+
+###### Wind Histogram by time-of-day ####
+# Calculate mean and median for day and night
+mean_day <- mean(coastal_data_df$wind_speed_100m[coastal_data_df$day_night == "Day"])
+median_day <- median(coastal_data_df$wind_speed_100m[coastal_data_df$day_night == "Day"])
+mean_night <- mean(coastal_data_df$wind_speed_100m[coastal_data_df$day_night == "Night"])
+median_night <- median(coastal_data_df$wind_speed_100m[coastal_data_df$day_night == "Night"])
+
+# Plot wind speed histograms by day / night
+ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = day_night)) +
+  geom_histogram(data = subset(coastal_data_df, day_night == "Day"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, day_night == "Night"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_vline(xintercept = median_day, color = "salmon", linetype = "solid", size = 1,
+             label = "Median Day") +
+  geom_vline(xintercept = median_night, color = "darkblue", linetype = "solid", size = 1,
+             label = "Median Night") +
+  # scale_fill_manual(values = c("Day" = "blue", "Night" = "red")) +
+  labs(title = "Wind Speed Distribution by Time of Day",
+       subtitle = "Including median lines",
+       x = "Wind Speed", 
+       y = "Frequency", 
+       fill = "Time of Day") +
+  scale_color_brewer(palette = "Set3") +
+  theme_gray()
+
+##### Wind speed histogram by season ####
+ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = season)) +
+  geom_histogram(data = subset(coastal_data_df, season == "Summer"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, season == "Fall"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, season == "Winter"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, season == "Spring"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  labs(title = "Wind Speed Distribution by Season",
+       x = "Wind Speed", 
+       y = "Frequency", 
+       fill = "Season") +
+  scale_color_brewer(palette = "Set3") +
+  theme_gray()
+
+
+# Create a new factor in your data frame that groups seasons into two categories
+coastal_data_df$season_group <- factor(
+  ifelse(coastal_data_df$season %in% c("Winter", "Spring"), "Winter/Spring", 
+         "Summer/Fall"))
+
+# Grouped by Winter/Spring and Summer/Fall
+ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = season_group)) +
+  geom_histogram(data = subset(coastal_data_df, season_group == "Winter/Spring"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, season_group == "Summer/Fall"), 
+                 alpha = 0.7, 
+                 binwidth = 0.5, 
+                 position = "identity") +
+  labs(title = "Wind Speed Distribution by Season",
+       x = "Wind Speed", 
+       y = "Frequency", 
+       fill = "Season") +
+  scale_x_continuous(breaks = seq(0, max(coastal_data_df$wind_speed_100m)*1.25, by = 4)) +
+  scale_color_brewer(palette = "Set3") +
+  theme_gray()
+
+###### (!!) Monthly wind speed graphs ####
+
+# Make a month variable
+coastal_data_df$month <- month(coastal_data_df$date_time, label = TRUE)
+
+# Calculate mean and variance (or standard deviation for error bars) for each month and day/night
+monthly_data <- coastal_data_df %>%
+  group_by(month, day_night) %>%
+  summarise(mean_wind_speed = mean(wind_speed_100m),
+            med_wind_speed = median(wind_speed_100m),
+            sd_wind_speed = sd(wind_speed_100m)) %>%
+  ungroup()
+
+# Plotting mean wind speed with error bars for variance (using standard deviation here)
+monthly_wind_speed <- {
+  ggplot(monthly_data, aes(x = month, y = mean_wind_speed, 
+                         group = day_night, color = day_night)) +
+  geom_line(size = 2) + # Line plot for mean wind speed
+  geom_errorbar(aes(ymin = mean_wind_speed - sd_wind_speed, 
+                    ymax = mean_wind_speed + sd_wind_speed), 
+                width = 0.2, size = 1) +
+  geom_point(size = 3) + # Add points to the mean values
+  scale_y_continuous(breaks = seq(0, max(monthly_data$mean_wind_speed)*2, 
+                                  by = 2)) +
+  scale_color_manual(values = c("Day" = "darkorange", "Night" = "darkblue")) +
+  labs(title = "Mean Wind Speed by Month and Day/Night",
+       x = "Month",
+       y = "Mean Wind Speed (with Standard Deviation)",
+       color = "Time of Day") +
+  theme_gray()
+}
+
+print(monthly_wind_speed)
+ggsave("images/monthly_wind_speed.png", plot=monthly_wind_speed, 
+       width = 8, height = 6)
+### TO-DO:  Add a date range to the title, 
+# try to make the colors prettier
+# consider making the std. deviation more visible
+
 
 #### Turbine Power Curve #####
 

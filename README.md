@@ -18,6 +18,9 @@ The analysis looks at big picture weather trends in the region and the effect on
 
 ![](./images/tile_weather.png)
 
+And does some deeper analysis into wind trends vs. time of year:
+![](./images/monthly_wind_speed.png)
+
 Then plots the expected single-turbine power curve:
 
 ![](./images/turbine_power_curve.png)
