@@ -1,4 +1,5 @@
 library(httr)
+library(suncalc)
 library(lubridate)
 library("tidyverse")
 
@@ -15,8 +16,8 @@ library("tidyverse")
 # Parameters for the request
 latitude <- 36.8317
 longitude <- -75.4680
-start_date <- "2022-01-01"
-end_date <- "2022-12-31"
+start_date <- "2019-01-01"
+end_date <- "2023-12-31"
 hourly <- "temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_100m"
 wind_speed_unit <- "ms"
 timezone <- "EST"
@@ -62,7 +63,7 @@ coastal_data_df <- data.frame(
   lat = data_lat,
   lon = data_lon,
   timezone = data_timezone,
-  time = data_time,
+  date_time = data_time,
   temperature_2m = unlist(coastal_data_list$hourly$temperature_2m),
   relative_humidity_2m = unlist(coastal_data_list$hourly$relative_humidity_2m),
   pressure_msl = unlist(coastal_data_list$hourly$pressure_msl),
@@ -75,19 +76,20 @@ coastal_data_df <- data.frame(
 view(coastal_data_df)
 str(coastal_data_df)
 
-#### Exploratory Data Analysis ####
+###### Variable Creation ####
 
 # Add a time-of-day and season variable to see how things change
-coastal_data_df$time_of_day <- format(coastal_data_df$time, "%H:%M:%S")
+coastal_data_df$time_of_day <- format(coastal_data_df$date_time, "%H:%M:%S")
 coastal_data_df$time_of_day <- factor(coastal_data_df$time_of_day, 
                                       levels = unique(coastal_data_df$time_of_day),
                                       ordered = TRUE)
+
 
 spring = c(3,4,5)
 summer = c(6,7,8)
 fall = c(9,10,11)
 
-coastal_data_df$season <- sapply(month(coastal_data_df$time),function(x){
+coastal_data_df$season <- sapply(month(coastal_data_df$date_time),function(x){
   if (x %in% spring) return("Spring")
   else if (x %in% summer) return("Summer")
   else if (x %in% fall) return("Fall")
@@ -97,27 +99,83 @@ coastal_data_df$season <- factor(coastal_data_df$season, levels = c("Winter",
                                                                     "Spring",
                                                                     "Summer",
                                                                     "Fall"))
+# Add a day/night indicator based using suncalc library
+# Create a data frame of unique dates
+unique_dates <- data.frame(date = unique(as.Date(coastal_data_df$date_time)))
+
+# Calculate sunrise and sunset times
+sun_times <- suncalc::getSunlightTimes(date = unique_dates$date, 
+                                       lat = latitude, 
+                                       lon = longitude, 
+                                       tz =  timezone)
+
+# Merge sunrise and sunset times back with the unique_dates
+unique_dates <- merge(unique_dates, sun_times, 
+                      by.x = "date", by.y = "date")
+
+unique_dates <- unique_dates[,c("date","sunrise","sunset")]
+
+# Add date variable to the main df
+coastal_data_df$date <- as.Date(coastal_data_df$date_time)
+
+# Merge the sunrise and sunset into the original dataset
+coastal_data_df <- merge(coastal_data_df, unique_dates, 
+                         by = "date", all.x = TRUE)
+
+# Add Day/Night variable
+coastal_data_df$day_night <- with(coastal_data_df, 
+                                  ifelse(date_time >= sunrise & date_time < sunset, 
+                                         "Day", "Night"))
+
+
+# Calculate variance by week
+variance_by_week <- coastal_data_df %>%
+  group_by(floor_date(date_time, unit = "week")) %>%
+  summarise(var_wind_speed = var(wind_speed_100m))
+
+colnames(variance_by_week) <- c("week", "var_wind_speed")
+
+# Calculate variance by day
+variance_by_date <- coastal_data_df %>%
+  group_by(date) %>%
+  summarise(var_wind_speed = var(wind_speed_100m))
+
+# Calculate variance by month
+variance_by_month <- coastal_data_df %>%
+  group_by(floor_date(date_time, unit = "month")) %>%
+  summarise(var_wind_speed = var(wind_speed_100m))
+
+colnames(variance_by_month) <- c("month", "var_wind_speed")
+
 
 # Add observation length and check for completeness
-coastal_data_df$time_differences = c(NA, diff(coastal_data_df$time))
-if(var(coastal_data_df$time_differences, na.rm = TRUE) == 0 && 
-   sum(is.na(coastal_data_df$time_differences) == 1)){
+coastal_data_df$time_differences = c(NA, diff(coastal_data_df$date_time))
+if(var(coastal_data_df$time_differences, na.rm = TRUE) == 0){
   coastal_data_df$time_differences[1] = 1
-} else print("Observations aren't all the same, or are missing data.")
+} else print("Observations aren't all the same")
 
 # Do some generic data validation and scatterplots vs. time
 print(paste0("Complete cases: ",
              sum(complete.cases(coastal_data_df))*100/nrow(coastal_data_df),
              "%"))
-plot(coastal_data_df$time, coastal_data_df$temperature_2m)
-plot(coastal_data_df$time, coastal_data_df$relative_humidity_2m)
-plot(coastal_data_df$time, coastal_data_df$pressure_msl)
-plot(coastal_data_df$time, coastal_data_df$wind_speed_100m)
+
+
+#### Exploratory Data Analysis ####
+
+# Some basic plots 
+plot(coastal_data_df$date_time, coastal_data_df$temperature_2m)
+plot(coastal_data_df$date_time, coastal_data_df$relative_humidity_2m)
+plot(coastal_data_df$date_time, coastal_data_df$pressure_msl)
+plot(coastal_data_df$date_time, coastal_data_df$wind_speed_100m)
 
 # Hist of windspeed, it should look like a Weibull distribution,
 # with a longer right tail and no negative values
 hist(coastal_data_df$wind_speed_100m)
 
+##### Wind Speed Temporal Analysis ####
+
+
+###### Boxplots #####
 # Create some boxplots with all the weather observations
 # Don't include pressure because it's much larger (000's)
 # Reshaping the dataframe to long format
@@ -145,7 +203,13 @@ ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Rotate x-axis labels for readability
 # looks like wind speed tends to lower during the middle of the day
 
-# Plot wind speeds vs. time-of-day by season
+# Day vs. night wind behavior
+ggplot(coastal_data_df, aes(x =wind_speed_100m, y = day_night)) +
+  facet_wrap(~season) +
+  geom_boxplot()
+
+###### Histograms #####
+####### Plot wind speeds vs. time-of-day by season #######
 wind_vs_time_by_season <- ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
   geom_boxplot() +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
@@ -156,7 +220,8 @@ wind_vs_time_by_season <- ggplot(coastal_data_df, aes(x = time_of_day, y = wind_
         strip.text = element_text(face = "bold", size = 12),
         plot.title = element_text(face = "italic", size = 12))
 
-ggsave("wind_vs_time_by_season.png", 
+print(wind_vs_time_by_season)
+ggsave("images/wind_vs_time_by_season.png", 
        plot = wind_vs_time_by_season, 
        width = 8, height = 6)
 
@@ -164,6 +229,70 @@ ggsave("wind_vs_time_by_season.png",
 # the Winter and Spring.  Also, wind seems to be slightly higher at night.
 # It also could be less gusty at night because there are less high outliers, 
 # but it's tough to tell. I could do it again with like 5 years of data
+
+###### Wind Scatterplot #####
+# Just a regular scatterplot of wind over time
+min_date = as.POSIXct("01-01-20", format = "%m-%d-%y", tz = timezone)
+max_date = as.POSIXct("01-01-21", format = "%m-%d-%y", tz = timezone)
+selected_range <- (coastal_data_df$date_time >= min_date & coastal_data_df$date_time < max_date)
+
+ggplot(coastal_data_df[selected_range,], aes(x = date_time, y = wind_speed_100m)) +
+  geom_line()
+
+###### Variance by date, week, month #####
+selected_range <- (variance_by_date$date >= min_date & variance_by_date$date < max_date)
+ggplot(variance_by_date[selected_range,], aes(x = date, y = var_wind_speed))+
+  geom_line() +
+  labs(title = "Variance of wind speed by date",
+       x = "Date",
+       y = "Variance of Wind Speed (m/s)") +
+  theme_minimal()
+
+selected_range <- (variance_by_week$week >= min_date & variance_by_week$week < max_date)
+ggplot(variance_by_week[selected_range,], aes(x = week, y = var_wind_speed))+
+  geom_line() +
+  labs(title = "Variance of wind speed by week",
+       x = "Week",
+       y = "Variance of Wind Speed (m/s)") +
+  theme_minimal()
+
+selected_range <- (variance_by_month$month >= min_date & variance_by_month$month < max_date)
+ggplot(variance_by_month, aes(x = month, y = var_wind_speed))+
+  geom_line() +
+  geom_smooth() +
+  labs(title = "Variance of wind speed by month",
+       x = "Month",
+       y = "Variance of Wind Speed (m/s)") +
+  theme_minimal()
+
+
+###### Wind Histogram #####
+# Create wind bins to aggregate the hours and power of wind data
+bin_width <- .5
+coastal_data_df$wind_bins <- cut(coastal_data_df$wind_speed_100m, 
+                                 breaks = seq(0, max(coastal_data_df$wind_speed_100m) + bin_width, 
+                                              bin_width), 
+                                 include.lowest = TRUE)
+
+## Convert factor to corrresponding numeric vector of midpoints
+bin_edges <- seq(0, max(coastal_data_df$wind_speed_100m) + bin_width, bin_width)
+bin_midpoints <- (bin_edges[-length(bin_edges)] + bin_edges[-1]) / 2
+
+# Convert wind_bins to numeric indices
+coastal_data_df$bin_index <- as.numeric(coastal_data_df$wind_bins)
+
+# Map indices to bin midpoints
+coastal_data_df$wind_bin_midpoint <- bin_midpoints[coastal_data_df$bin_index]
+
+wind_hist <- ggplot(coastal_data_df, aes(x = wind_bin_midpoint, y = time_differences)) +
+  geom_col(fill = "blue", alpha = 0.7) +
+  labs(x = "Wind Speed (m/s)", 
+       y = "Total Hours Observed", 
+       title = "Bar Plot: Wind Speed vs. Total Hours Observed") +
+  theme_minimal()
+
+print(wind_hist)
+
 
 #####Air Density Calculation ####
 
@@ -275,26 +404,26 @@ ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW_flat)) +
 
 # We'll try to visualize and capture the distribution of air density to add
 # fuzziness to the rated power
-hist(coastal_data_df$air_density) # Not all that normal
-plot(coastal_data_df$wind_speed_100m, coastal_data_df$air_density)
+# hist(coastal_data_df$air_density) # Not all that normal
+# plot(coastal_data_df$wind_speed_100m, coastal_data_df$air_density)
 
 # see if there's a relationship between pressure and wind_speed
-lm <- lm(air_density ~ wind_speed_100m, data= coastal_data_df)
-summary(lm)
+# lm <- lm(air_density ~ wind_speed_100m, data= coastal_data_df)
+# summary(lm)
 # Can't really say much of value about that, not that'll hold up
 # I'll say, it appears the variance is different at higher wind speeds, but
 # The statistic relationship can't be modeled linearly using only wind speed
 
 
 # Plot that relationship
-ggplot(coastal_data_df, aes(x = wind_speed_100m, y = air_density)) +
-  geom_point() +  # Plot the original data points
-  geom_smooth(method = "lm", formula = y ~ x, 
-              color = "red", se = FALSE) +
-  labs(title = "Air Density vs. Wind Speed ",
-       x = "Wind Speed (m/s)",
-       y = "Air Density (kg / m^3)") +
-  theme_minimal()
+# ggplot(coastal_data_df, aes(x = wind_speed_100m, y = air_density)) +
+#   geom_point() +  # Plot the original data points
+#   geom_smooth(method = "lm", formula = y ~ x, 
+#               color = "red", se = FALSE) +
+#   labs(title = "Air Density vs. Wind Speed ",
+#        x = "Wind Speed (m/s)",
+#        y = "Air Density (kg / m^3)") +
+#   theme_minimal()
 
 ## I'll just try to use the actual air density for wind > rated speed, but use 
 # rated speed instead of wind speed. It'll be a little more realistic, but not perfect
@@ -321,7 +450,8 @@ turbine_power_curve <- ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y
        y = "Power (kW)") +
   theme(plot.title = element_text(face = "italic"))
 
-ggsave("turbine_power_curve.png", plot=turbine_power_curve, 
+print(turbine_power_curve)
+ggsave("images/turbine_power_curve.png", plot=turbine_power_curve, 
        width = 8, height = 6)
 
 # See what the average power output greater than rated speed is
@@ -331,10 +461,15 @@ print(paste("Average power when > rated speed:",
 
 
 ####### Weighted Average Power ####
-# Calculate energy per period
+# Calculate energy per observation, total and annual MWh
 coastal_data_df$energy_kWh <- coastal_data_df$power_kW * coastal_data_df$time_differences
 total_MWh <- sum(coastal_data_df$energy_kWh/1000)
-print(paste("Total Enery Produced:",round(total_MWh,0),"MWh"))
+print(paste("Total Energy Produced:",round(total_MWh,0),"MWh"))
+
+years <- as.numeric(max(coastal_data_df$date_time) - min(coastal_data_df$date_time)) / 365.25
+annual_MWh <- total_MWh / years
+print(paste("Average Annual Energy Produced:",round(annual_MWh,0),"MWh"))
+
 
 # Energy produced vs. Time-of-day
 plot(coastal_data_df$time_of_day, coastal_data_df$power_kW, pch = 16,
@@ -353,91 +488,69 @@ ggplot(coastal_data_df, aes(x = time_of_day, y = power_kW)) +
         plot.title = element_text(face = "italic", size = 16))
 
 
-### Make a weighted histogram of wind speed
-# Define bins for wind speed
-wind_breaks <- seq(0, max(coastal_data_df$wind_speed_100m)+.1, by = .2)
-
-# Create weighted wind histogram
-hist_wind <- hist(coastal_data_df$wind_speed_100m, 
-                  breaks = wind_breaks, 
-                  plot = FALSE, 
-                  weights = coastal_data_df$time_of_day)
-
-# Plot the weighted histogram
-barplot(hist_wind$counts, 
-        names.arg = hist_wind$breaks[-length(hist_wind$breaks)], 
-        col = "lightblue", border = "black", 
-        xlab = "Wind Speed (m/s)", ylab = "Total Hours", 
-        main = "Distribution of Wind Speeds (Weighted by Duration)")
-
-### Make a weighted histogram of power 
-# Define bins for power
-power_breaks <- seq(0, max(coastal_data_df$power_kW)+50, by = 50)
-
-# Create weighted power histogram
-hist_power <- hist(coastal_data_df$power_kW, 
-                   breaks = power_breaks, 
-                   plot = FALSE, 
-                   weights = coastal_data_df$time_differences)
-
-# Plot the weighted histogram
-barplot(hist_power$counts, 
-        names.arg = hist_power$breaks[-length(hist_power$breaks)], 
-        col = "lightblue", border = "black", 
-        xlab = "Power (kW)", ylab = "Total Hours", 
-        main = "Distribution of Power (Weighted by Duration)")
-
-
 ###### Combined Weighted Average Power Plot #####
-bin_width <- .5
-coastal_data_df$wind_bins <- cut(coastal_data_df$wind_speed_100m, 
-                                 breaks = seq(0, max(coastal_data_df$wind_speed_100m) + bin_width, 
-                                              bin_width), 
-                                 include.lowest = TRUE)
 
-# Calculate total hours observed and total energy produced for each wind speed bin
-summary_data <- aggregate(cbind(time_differences, energy_kWh) ~ wind_bins, 
+# Calculate total hours observed and total energy produced for each wind speed
+summary_data <- aggregate(cbind(time_differences, energy_kWh) ~ wind_bin_midpoint, 
                           data = coastal_data_df, sum)
 
+
 # Create a bar plot of total hours observed
-hours_plot <- ggplot(summary_data, aes(x = wind_bins, y = time_differences)) +
-  geom_bar(stat = "identity", fill = "blue", color = "black", alpha = 0.7) +
+hours_plot <- ggplot(summary_data, aes(x = wind_bin_midpoint, y = time_differences)) +
+  geom_col(fill = "blue", color = "black", alpha = 0.7) +
   labs(x = "Wind Speed (m/s)", 
        y = "Total Hours Observed", 
-       title = "Bar Plot: Wind Speed Bins vs. Total Hours Observed") +
-  scale_x_discrete(labels = function(x) gsub("\\[|\\)", "", x))
+       title = "Bar Plot: Wind Speed vs. Total Hours Observed") +
+  theme_minimal()
+
+print(hours_plot)
 
 # Create a line plot of total energy produced
-scale_factor = 7000
-energy_plot <- ggplot(summary_data, aes(x = wind_bins, y = energy_kWh/scale_factor)) +
-  geom_bar(stat = "identity", fill = "maroon", color = "black", alpha = 0.7) +
+scale_factor = 0.8 * max(summary_data$energy_kWh) / max(summary_data$time_differences)
+convert_MWh = 1000
+energy_plot <- ggplot(summary_data, aes(x = wind_bin_midpoint, y = energy_kWh/scale_factor)) +
+  geom_col(fill = "maroon", color = "black", alpha = 0.7) +
   labs(x = "Wind Speed Bins", 
        y = "Total Energy Produced", 
-       title = "Bar Plot: Wind Speed Bins vs. Total Energy Produced") +
-  scale_x_discrete(labels = function(x) gsub("\\[|\\)", "", x)) +
-  scale_y_continuous(sec.axis = sec_axis(~.*scale_factor/1000, name = "Energy (MWh) (scaled)"))+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+       title = "Bar Plot: Wind Speed vs. Total Energy Produced") +
+  scale_y_continuous(sec.axis = sec_axis(~.*scale_factor/convert_MWh, 
+                                         name = "Energy (MWh) (scaled)"))+
+  theme()
+print(energy_plot)
 
 # Plot both on the same axis
 annotate_x <- max(coastal_data_df$wind_speed_100m) 
 annotate_y <- .05 * sum(coastal_data_df$time_differences)
+date_range_pretty <- paste(format(min(coastal_data_df$date_time),"%b %Y"), "-",
+                           format(max(coastal_data_df$date_time),"%b %Y"))
+  
 combined_plot <- hours_plot +
-  geom_bar(data = summary_data, 
-           aes(x = wind_bins, y = energy_kWh/scale_factor),
-           fill = "maroon", 
-           stat = "identity", 
+  geom_col(data = summary_data, 
+           aes(x = wind_bin_midpoint, y = energy_kWh/scale_factor),
+           fill = "maroon",
            alpha = 0.7) +
-  labs(title = "VA Coastal Wind (Single Turbine): Total Hours of Wind Observed and Total Energy Produced (Jan-Dec 2022)") +
+  labs(title = paste0("VA Coastal Wind (Single Turbine): Total Hours of Wind Observed and Total Energy Produced",
+                      " (", date_range_pretty, ")")) +
   annotate("text", 
            x = annotate_x, y = annotate_y, 
-           label = paste("Total Power Produced:",round(total_MWh,0),"MWh"), 
-           hjust = -1, vjust = 0, 
+           label = paste("Total Power Produced:",format(round(total_MWh,0), big.mark = ","),"MWh"), 
+           hjust = 1, vjust = 0, 
            color = "black") +
-  scale_y_continuous(sec.axis = sec_axis(~.*scale_factor/1000, name = "Energy (MWh) (scaled)"))+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  annotate("text", 
+           x = annotate_x, y = annotate_y, 
+           label = paste("Avg. Annual Power Produced:",format(round(annual_MWh,0), big.mark = ","),"MWh"), 
+           hjust = 1, vjust = 1.5, 
+           color = "black") +
+  scale_y_continuous(sec.axis = sec_axis(~.*scale_factor/convert_MWh, name = "Energy (MWh) (scaled)",
+                                         breaks = seq(0, max(summary_data$energy_kWh) * scale_factor / convert_MWh,
+                                                      by = round(max(summary_data$energy_kWh/(7*convert_MWh)), -3) )),
+                     breaks = seq(0, max(summary_data$time_differences)*1.25, 
+                                  by = round(max(summary_data$time_differences/5), -2) )) +
+  scale_x_continuous(breaks = seq(0, max(summary_data$wind_bin_midpoint)*1.25, by = 2)) + 
+  theme_gray()
 
 # Print the combined plot
 print(combined_plot)
-ggsave("weighted_average_power_and_wind.png", plot = combined_plot, 
-       width = 8, height = 8)
+ggsave("images/weighted_average_power_and_wind.png", plot = combined_plot, 
+       width = 12, height = 8)
 
