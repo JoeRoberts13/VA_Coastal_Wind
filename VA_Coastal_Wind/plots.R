@@ -17,6 +17,35 @@ plot(coastal_data_df$date_time, coastal_data_df$relative_humidity_2m)
 plot(coastal_data_df$date_time, coastal_data_df$pressure_msl)
 plot(coastal_data_df$date_time, coastal_data_df$wind_speed_100m)
 
+###### Tiled weather plot #####
+## Make some tiled scatterplots 
+selected_y_vars <- c("temperature_2m", "air_density", "wind_speed_100m","power_kW")
+
+scatter_min_date <- as.POSIXct("01-01-20", format = "%m-%d-%y", tz = timezone)
+scatter_max_date <- as.POSIXct("01-01-21", format = "%m-%d-%y", tz = timezone)
+
+selected_x_dates <- (coastal_data_df$date_time >= scatter_min_date & 
+                       coastal_data_df$date_time < scatter_max_date)
+
+data_selected <- coastal_data_df[selected_x_dates, c("date_time", selected_y_vars)]
+data_long <- tidyr::gather(data_selected, key = "variable", value = "value", -date_time)
+
+data_long$variable <- factor(data_long$variable, 
+                       levels = c("temperature_2m", "air_density", "wind_speed_100m","power_kW"),
+                       labels = c("Temperature (C)", "Air Density (kg/m^3)", "Wind Speed (m/s)", "Power (kW)"))
+
+
+p_scatterTile <- ggplot(data_long, aes(x = date_time, y = value)) +
+  geom_point(color = "#126180", alpha = 0.7) +
+  facet_wrap(~variable, scales = "free") +
+  labs(x = "Date", y = element_blank()) +
+  theme_minimal()
+
+print(p_scatterTile)
+ggsave("images/tile_weather.png", 
+       plot = p_scatterTile, 
+       width = 8, height = 6)
+
 # Hist of windspeed, it should look like a Weibull distribution,
 # with a longer right tail and no negative values
 hist(coastal_data_df$wind_speed_100m)
