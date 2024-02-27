@@ -39,7 +39,7 @@ p_scatterTile <- ggplot(data_long, aes(x = date_time, y = value)) +
   geom_point(color = "#126180", alpha = 0.7) +
   facet_wrap(~variable, scales = "free") +
   labs(x = "Date", y = element_blank()) +
-  theme_minimal()
+  theme_gray()
 
 print(p_scatterTile)
 ggsave("images/tile_weather.png", 

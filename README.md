@@ -22,7 +22,6 @@ Then plots the expected single-turbine power curve:
 
 ![](./images/turbine_power_curve.png)
 
-
 Additionally, I found the expected distribution of wind speeds and the effect on power output based on the turbine power curve:
 
 ![](./images/weighted_average_power_and_wind.png)
