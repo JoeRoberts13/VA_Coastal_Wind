@@ -11,7 +11,8 @@ library(RColorBrewer)
 source("VA_Coastal_Wind/main.R")
 
 # Set color palette
-pal <- brewer.pal(n = 3, name = "Set3") # Adjust 'n' based on your need
+pal <- brewer.pal(n = 6, name = "Set2") # Adjust 'n' based on your need
+pal_name = "Set2"
 
 #### Exploratory Data Analysis ####
 
@@ -40,7 +41,7 @@ data_long$variable <- factor(data_long$variable,
 
 
 p_scatterTile <- ggplot(data_long, aes(x = date_time, y = value)) +
-  geom_point(color = "#126180", alpha = 0.7) +
+  geom_point(color = pal[1], alpha = 0.7) +
   facet_wrap(~variable, scales = "free") +
   labs(x = "Date", y = element_blank()) +
   theme_gray()
@@ -74,11 +75,12 @@ ggplot(coastal_data_long, aes(x = variable, y = value, fill = variable)) +
   labs(title = "Boxplot of Relative Humidity, Temperature, and Wind Speed", 
        x = "Variable", 
        y = "Value") +
+  scale_fill_brewer(palette = pal_name)
   theme(legend.title = element_blank()) # Remove the legend title 
 
 # Plot wind speed vs. time-of-day w/ boxplots
 ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
-  geom_boxplot() +
+  geom_boxplot(fill = pal[1]) +
   labs(title = "Wind Speed vs. Time of Day",
        x = "Time of Day",
        y = "Wind Speed (100m)") +
@@ -88,12 +90,11 @@ ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
 # Day vs. night wind behavior
 ggplot(coastal_data_df, aes(x =wind_speed_100m, y = day_night)) +
   facet_wrap(~season) +
-  geom_boxplot()
+  geom_boxplot(fill = pal[1])
 
-###### Histograms #####
 ####### Plot wind speeds vs. time-of-day by season #######
 wind_vs_time_by_season <- ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
-  geom_boxplot() +  
+  geom_boxplot(fill = pal[1]) +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
   labs(title = "Wind Speed vs. Time of Day by Season",
        x = "Time of Day",
@@ -164,7 +165,8 @@ coastal_data_df$bin_index <- as.numeric(coastal_data_df$wind_bins)
 coastal_data_df$wind_bin_midpoint <- bin_midpoints[coastal_data_df$bin_index]
 
 wind_hist <- ggplot(coastal_data_df, aes(x = wind_bin_midpoint, y = time_differences)) +
-  geom_col(fill = "blue", alpha = 0.7) +
+  geom_col(fill = pal[1], 
+           alpha = 0.7) +
   labs(x = "Wind Speed (m/s)", 
        y = "Total Hours Observed", 
        title = "Bar Plot: Wind Speed vs. Total Hours Observed") +
@@ -189,17 +191,12 @@ ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = day_night)) +
                  alpha = 0.7, 
                  binwidth = 0.5, 
                  position = "identity") +
-  geom_vline(xintercept = median_day, color = "salmon", linetype = "solid", size = 1,
-             label = "Median Day") +
-  geom_vline(xintercept = median_night, color = "darkblue", linetype = "solid", size = 1,
-             label = "Median Night") +
-  # scale_fill_manual(values = c("Day" = "blue", "Night" = "red")) +
   labs(title = "Wind Speed Distribution by Time of Day",
        subtitle = "Including median lines",
        x = "Wind Speed", 
        y = "Frequency", 
        fill = "Time of Day") +
-  scale_color_brewer(palette = "Set3") +
+  scale_color_brewer(palette = pal_name) +
   theme_gray()
 
 ##### Wind speed histogram by season ####
@@ -224,14 +221,9 @@ ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = season)) +
        x = "Wind Speed", 
        y = "Frequency", 
        fill = "Season") +
-  scale_color_brewer(palette = "Set3") +
+  scale_color_brewer(palette = pal_name) +
   theme_gray()
 
-
-# Create a new factor in your data frame that groups seasons into two categories
-coastal_data_df$season_group <- factor(
-  ifelse(coastal_data_df$season %in% c("Winter", "Spring"), "Winter/Spring", 
-         "Summer/Fall"))
 
 # Grouped by Winter/Spring and Summer/Fall
 ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = season_group)) +
@@ -244,11 +236,12 @@ ggplot(coastal_data_df, aes(x = wind_speed_100m, fill = season_group)) +
                  binwidth = 0.5, 
                  position = "identity") +
   labs(title = "Wind Speed Distribution by Season",
+       subtitle = "Summer/Fall = Jun-Nov; Winter/Spring = Dec-May",
        x = "Wind Speed", 
        y = "Frequency", 
        fill = "Season") +
   scale_x_continuous(breaks = seq(0, max(coastal_data_df$wind_speed_100m)*1.25, by = 4)) +
-  scale_color_brewer(palette = "Set3") +
+  scale_color_brewer(palette = pal_name) +
   theme_gray()
 
 ###### (!!) Monthly wind speed graphs ####
@@ -275,7 +268,7 @@ monthly_wind_speed <- {
   geom_point(size = 3) + # Add points to the mean values
   scale_y_continuous(breaks = seq(0, max(monthly_data$mean_wind_speed)*2, 
                                   by = 2)) +
-  scale_color_manual(values = c("Day" = "darkorange", "Night" = "darkblue")) +
+  scale_color_manual(values = c("Day" = pal[6], "Night" = pal[3])) +
   labs(title = "Mean Wind Speed by Month and Day/Night",
        x = "Month",
        y = "Mean Wind Speed (with Standard Deviation)",
@@ -290,6 +283,33 @@ ggsave("images/monthly_wind_speed.png", plot=monthly_wind_speed,
 # try to make the colors prettier
 # consider making the std. deviation more visible
 
+
+#### Air Density Histogram ####
+ggplot(data = coastal_data_df, aes(x = air_density)) +
+  geom_histogram(binwidth = .005, fill = pal[1], color= "grey") +
+  labs(title = "Air Density Histogram",
+       x = "Air Density (kg/m^3)",
+       y = "Hours observed") +
+  theme_gray()
+
+
+###### Air Density by season #####
+ggplot(data = coastal_data_df, aes(x = air_density, fill = season_group)) +
+  geom_histogram(data = subset(coastal_data_df, season_group == "Summer/Fall"), 
+               alpha = 0.7, 
+               binwidth = 0.005, 
+               position = "identity") +
+  geom_histogram(data = subset(coastal_data_df, season_group == "Winter/Spring"), 
+                 alpha = 0.7, 
+                 binwidth = 0.005, 
+                 position = "identity") +
+  labs(title = "Air Density by Season",
+       subtitle = "Summer/Fall = Jun-Nov; Winter/Spring = Dec-May",
+       x = "Air Density (kg/m^3)", 
+       y = "Hours", 
+       fill = "Season") +
+  scale_color_brewer(palette = pal_name) +
+  theme_gray()
 
 #### Turbine Power Curve #####
 
@@ -328,16 +348,20 @@ ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW_flat)) +
 
 ###### Turbine Power Curve ####
 # We'll plot the turbine power curve to see how it looks
-turbine_power_curve <- ggplot(data = coastal_data_df, aes(x = wind_speed_100m, y = power_kW)) +
+turbine_power_curve <- ggplot(data = coastal_data_df, aes(x = wind_speed_100m, 
+                                                          y = power_kW,
+                                                          col = air_density)) +
   geom_point() + 
-  geom_hline(yintercept = rated_power, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = rated_power, linetype = "dashed", color = pal[2]) +
   geom_text(aes(x = 0, y = rated_power, 
                 label = paste("Rated Power:",rated_power,"kW")), 
-            hjust = 0, vjust = -.5, color = "red") +
+            hjust = 0, vjust = -.5, color = pal[2]) +
   labs(title = "Turbine Power Curve",
+       color = expression(paste("Air Density ",(kg/{m^{3}}))),
        x = "Wind Speed (m/s)",
        y = "Power (kW)") +
-  theme(plot.title = element_text(face = "italic"))
+  scale_color_gradient(low = "lightseagreen", high = "navyblue") +
+  theme(plot.title = element_text(face = "bold"))
 
 print(turbine_power_curve)
 ggsave("images/turbine_power_curve.png", plot=turbine_power_curve, 
@@ -356,14 +380,15 @@ plot(coastal_data_df$time_of_day, coastal_data_df$power_kW, pch = 16,
 
 # Energy produced vs. Time-of-day by season 
 ggplot(coastal_data_df, aes(x = time_of_day, y = power_kW)) +
-  geom_boxplot() +  
+  geom_boxplot(fill = pal[1]) +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
   labs(title = "Power Produced vs. Time of Day by Season",
        x = "Time of Day",
        y = "Power (kW)") +
+  scale_y_continuous(breaks = seq(0, max(coastal_data_df$power_kW), by = 2000)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1),  # Improve readability of x-axis labels
         strip.text = element_text(face = "bold", size = 12),
-        plot.title = element_text(face = "italic", size = 16))
+        plot.title = element_text(face = "bold", size = 16))
 
 
 ###### Combined Weighted Average Power Plot #####
@@ -375,7 +400,7 @@ summary_data <- aggregate(cbind(time_differences, energy_kWh) ~ wind_bin_midpoin
 
 # Create a bar plot of total hours observed
 hours_plot <- ggplot(summary_data, aes(x = wind_bin_midpoint, y = time_differences)) +
-  geom_col(fill = "blue", color = "black", alpha = 0.7) +
+  geom_col(fill = pal[1], color = "black", alpha = 0.7) +
   labs(x = "Wind Speed (m/s)", 
        y = "Total Hours Observed", 
        title = "Bar Plot: Wind Speed vs. Total Hours Observed") +
@@ -387,7 +412,7 @@ print(hours_plot)
 scale_factor = 0.8 * max(summary_data$energy_kWh) / max(summary_data$time_differences)
 convert_MWh = 1000
 energy_plot <- ggplot(summary_data, aes(x = wind_bin_midpoint, y = energy_kWh/scale_factor)) +
-  geom_col(fill = "maroon", color = "black", alpha = 0.7) +
+  geom_col(fill = pal[2], color = "black", alpha = 0.7) +
   labs(x = "Wind Speed Bins", 
        y = "Total Energy Produced", 
        title = "Bar Plot: Wind Speed vs. Total Energy Produced") +
@@ -405,7 +430,9 @@ date_range_pretty <- paste(format(min(coastal_data_df$date_time),"%b %Y"), "-",
 combined_plot <- hours_plot +
   geom_col(data = summary_data, 
            aes(x = wind_bin_midpoint, y = energy_kWh/scale_factor),
-           fill = "maroon",
+           fill = pal[2],
+           color = "black",
+           size = .3,
            alpha = 0.7) +
   labs(title = paste0("VA Coastal Wind (Single Turbine): Total Hours of Wind Observed and Total Energy Produced",
                       " (", date_range_pretty, ")")) +
@@ -431,6 +458,105 @@ combined_plot <- hours_plot +
 print(combined_plot)
 ggsave("images/weighted_average_power_and_wind.png", plot = combined_plot, 
        width = 12, height = 8)
+
+
+#### Capacity Factor Plots ####
+
+###### Overall Capacity Histogram ####
+ggplot(data = coastal_data_df, aes(x = capacity_f)) +
+  geom_histogram(binwidth = .05, fill = "lightblue3") +
+  labs(title = "Capacity Factor Histogram",
+       x = "Capacity Factor",
+       y = "Hours observed") +
+  theme_gray()
+
+###### Capacity Factor Scatters #####
+## Got some weird artifacts worth looking into
+ggplot(data = coastal_data_df, aes(x = air_density, y = capacity_f, color = wind_speed_100m)) +
+  geom_point() +
+  scale_color_gradient(low = "lightblue", high = "darkblue") +
+  labs(title = "Capacity Factor vs. Wind Speed",
+       x = "Wind Speed (m/s)",
+       y = "Capacity Factor") +
+  theme_gray()
+
+##### Monthly mean capacity factor #####
+
+# Summarize the data
+monthly_data_cf <- coastal_data_df %>%
+  group_by(month) %>%
+  summarise(mean_wind_speed = mean(wind_speed_100m),
+            med_wind_speed = median(wind_speed_100m),
+            sd_wind_speed = sd(wind_speed_100m),
+            mean_capacity = mean(capacity_f),
+            med_capacity = median(capacity_f),
+            sd_capacity = sd(capacity_f)) %>%
+  ungroup()
+
+# Transform the capacity factor for graphing
+tranformation <- function(y) y * 15
+inverse_transformation <- function(y) y / 15
+
+monthly_data_cf$mean_capacity.T <- tranformation(monthly_data_cf$mean_capacity)
+
+# Convert to long
+capacity_long <- monthly_data_cf %>%
+  pivot_longer(
+    cols = c(mean_wind_speed, mean_capacity.T), 
+    names_to = "variable", 
+    values_to = "y_value"
+  )
+
+# Line graph with capacity factor
+ggplot(monthly_data_cf, aes(x = month, y = mean_capacity, group = 1)) +
+  geom_point() +
+  geom_line() +
+  coord_cartesian(ylim = c(0,1)) +
+  geom_errorbar(aes(ymin = mean_capacity - sd_capacity, 
+                    ymax = mean_capacity + sd_capacity), 
+                width = 0.2, size = 1) +
+  labs(title = "Mean Capacity Factor by Month",
+     x = "Month",
+     y = "Mean Capacity Factor") +
+  theme_gray()
+
+# Boxplot to show the distribution
+ggplot(coastal_data_df, aes(x = month, y = capacity_f)) +
+  geom_violin(fill = pal[4]) +
+  stat_summary(mapping = aes(x = month, y = capacity_f),
+               data = coastal_data_df,
+               position = "identity",
+               size = 1) +
+  coord_cartesian(ylim = c(0,1)) +
+  labs(title = "Distributions of Capacity Factor by Month with Mean",
+       x = "Month",
+       y = "Capacity Factor") +
+  theme_gray()
+
+# Histograms by month
+ggplot(coastal_data_df, aes(x = capacity_f)) +
+  geom_histogram() +
+  facet_wrap(~month) +
+  labs(title = "Capacity Factor Histogram by Month",
+     x = "Capacity Factor",
+     y = "Frequency") +
+  theme_gray()
+
+# Line graph with wind speed and capacity factor
+ggplot(capacity_long, aes(x = month, y = y_value, group = variable, color = variable)) +
+  geom_line() +
+  scale_y_continuous("Mean Wind Speed (m/s)",
+                     sec.axis = sec_axis(~inverse_transformation(.), name = "Mean Capacity Factor")) +
+  labs(title = "Mean Capacity Factor and Wind Speed by Month",
+       x = "Month",
+       color = "Variable") +
+  theme_gray()
+
+ggplot(coastal_data_df %>% filter(date > "2020-05-01" & date < "2020-09-01"), 
+       aes(x = date_time, y = power_kW)) +
+  geom_col()
+
+
 
 
 
