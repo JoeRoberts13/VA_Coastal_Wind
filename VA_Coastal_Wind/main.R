@@ -107,6 +107,11 @@ coastal_data_df$season <- factor(coastal_data_df$season, levels = c("Winter",
                                                                     "Spring",
                                                                     "Summer",
                                                                     "Fall"))
+# Create a new factor that groups seasons into two categories
+coastal_data_df$season_group <- factor(
+  ifelse(coastal_data_df$season %in% c("Winter", "Spring"), "Winter/Spring", 
+         "Summer/Fall"))
+
 # Add a day/night indicator based using suncalc library
 # Create a data frame of unique dates
 unique_dates <- data.frame(date = unique(as.Date(coastal_data_df$date_time)))
@@ -269,13 +274,20 @@ coastal_data_df <- coastal_data_df %>%
 ## I'll use the actual air density when wind > rated speed, but use 
 # rated speed instead of wind speed. It'll be a little more realistic, but not 
 # perfect. I think it's a reasonable assumption because the turbine will yaw the
-# blades to keep the most efficient tip speed of the rotor.
+# blades to keep the most efficient tip speed of the rotor. 
 coastal_data_df <- coastal_data_df %>%
   mutate(power_kW = case_when(
     wind_speed_100m < cut_in_speed ~ 0,
     wind_speed_100m < rated_speed ~ n_combined * power_available,
     wind_speed_100m < cut_out_speed ~ n_combined * power_available / wind_speed_100m^3 * rated_speed^3,
     TRUE ~ 0
+  ))
+
+# Cap max power at rated power
+coastal_data_df <- coastal_data_df %>%
+  mutate(power_kW = case_when(
+    power_kW > rated_power ~ rated_power,
+    TRUE ~ power_kW
   ))
 
 
@@ -293,5 +305,6 @@ print(paste("Average Annual Energy Produced:",
             format(round(annual_MWh,0), big.mark = ","),
             "MWh"))
 
-
+##### Capacity Factors ####
+coastal_data_df$capacity_f <- coastal_data_df$power_kW / rated_power
 
