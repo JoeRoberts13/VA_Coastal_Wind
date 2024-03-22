@@ -4,7 +4,7 @@ This is some analysis of the upcoming Coastal Virginia Offshore Wind project by 
 
 The project began with a pilot project, finished in 2020, consisting of 2 12MW turbines. The commercial project, which is expected to be finished in 2026, will be much larger-- with 176 14MW turbines planned.
 
-The model uses weather data from the past 5 years, and the expected wind turbine performance parameters to model expected power output and capacity factor.
+The model uses 5 years of aggregated hourly weather data, and the expected wind turbine performance parameters to model expected power output and capacity factor.
 
 ![](./images/public/coastal_power_graphic.png)
 
@@ -14,7 +14,7 @@ Special thanks to Open Meteo for the weather API: <https://open-meteo.com>
 
 # Analysis Summary
 
-The analysis used climatology data from Open Meteo to get hourly wind speed and calculate air density from temperature, relative humidity, and pressure:
+The analysis used climatology data over the period of January 1st, 2019 until December 31st 2023 from Open Meteo to get hourly wind speed and calculate air density from temperature, relative humidity, and pressure:
 
 ![](./images/tile_weather.png)
 
