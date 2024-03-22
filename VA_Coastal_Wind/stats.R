@@ -225,7 +225,7 @@ p_qq_season_group <- ggplot(qq_season_group, aes(x = theoretical, y = sample, co
                          ")"),
        x = "Theoretical Wind Speed Quantiles", 
        y = "Actual Wind Speed Quantiles") +
-  theme_minimal()
+  theme_gray()
 
 print(p_qq_season_group)
 ggsave("images/qq_season_group.png", p_qq_season_group,
