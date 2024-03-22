@@ -92,7 +92,7 @@ ggplot(coastal_data_df, aes(x =wind_speed_100m, y = day_night)) +
   facet_wrap(~season) +
   geom_boxplot(fill = pal[1])
 
-####### Plot wind speeds vs. time-of-day by season #######
+####### Boxplot of wind speeds vs. time-of-day by season #######
 wind_vs_time_by_season <- ggplot(coastal_data_df, aes(x = time_of_day, y = wind_speed_100m)) +
   geom_boxplot(fill = pal[1]) +  
   facet_wrap(~season, scales = "free_x") +  # Create a panel for each season
@@ -110,6 +110,21 @@ ggsave("images/wind_vs_time_by_season.png",
 
 # Summary: Wind seems to be generally higher, and a little bit more variable in 
 # the Winter and Spring.  Also, wind seems to be slightly higher at night.
+
+######## Boxplot of wind speeds vs. month ######
+wind_vs_month <- ggplot(coastal_data_df, aes(x = month, y = wind_speed_100m)) +
+  geom_boxplot(fill = pal[1]) +  
+  labs(title = "Wind Speed vs. Month",
+       x = "Month",
+       y = "Wind Speed (@ 100m elevation)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  # Improve readability of x-axis labels
+        strip.text = element_text(face = "bold", size = 12),
+        plot.title = element_text(face = "italic", size = 12))
+
+print(wind_vs_month)
+ggsave("images/wind_vs_month.png", 
+       plot = wind_vs_month, 
+       width = 8, height = 6)
 
 ###### Wind Scatterplot #####
 # Just a regular scatterplot of wind over time
@@ -361,6 +376,8 @@ turbine_power_curve <- ggplot(data = coastal_data_df, aes(x = wind_speed_100m,
        x = "Wind Speed (m/s)",
        y = "Power (kW)") +
   scale_color_gradient(low = "lightseagreen", high = "navyblue") +
+  scale_y_continuous(breaks = seq(0, max(coastal_data_df$power_kW)*1.25, by = 2000)) +
+  scale_x_continuous(breaks = seq(0, max(coastal_data_df$wind_speed_100m)*1.25, by = 2)) +
   theme(plot.title = element_text(face = "bold"))
 
 print(turbine_power_curve)
